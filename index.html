@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Realidade Aumentada - Modelo Animado</title>
+    <title>Realidade Aumentada</title>
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -108,7 +108,7 @@
     </div>
 
     <!-- Dica -->
-    <div id="hint">Arraste para girar | Modelo animado</div>
+    <div id="hint">Arraste para girar | Pinça para zoom</div>
 
     <!-- Cena AR -->
     <a-scene 
@@ -125,7 +125,7 @@
                 
                 <!-- 
                     Modelo com animação
-                    animation-mixer controla as animações embutidas no .glb
+                    animation-mixer toca automaticamente as animações do .glb
                 -->
                 <a-entity 
                     id="model"
@@ -179,44 +179,68 @@
                 hint.classList.add('hidden');
             }, 6000);
 
-            // ===== CONTROLE DE ROTAÇÃO (mantido) =====
+            // ===== CONTROLE: ROTAÇÃO + ZOOM =====
             const container = document.getElementById('model-container');
+            const model = document.getElementById('model');
+            
             let rotY = 0;
             let rotX = 0;
+            let scale = 0.3;
             let isDragging = false;
             let lastX = 0;
             let lastY = 0;
+            let lastDistance = 0;
 
+            // ===== ZOOM COM PINÇA =====
+            function getTouchDistance(touches) {
+                if (touches.length < 2) return 0;
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // Touch: inicia
             document.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
                     isDragging = true;
                     lastX = e.touches[0].clientX;
                     lastY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    lastDistance = getTouchDistance(e.touches);
                 }
             }, { passive: true });
 
+            // Touch: move
             document.addEventListener('touchmove', function(e) {
-                if (!isDragging || e.touches.length !== 1) return;
-                
-                const touch = e.touches[0];
-                const deltaX = touch.clientX - lastX;
-                const deltaY = touch.clientY - lastY;
-                
-                rotY += deltaX * 0.5;
-                rotX += deltaY * 0.3;
-                rotX = Math.max(-90, Math.min(90, rotX));
-                
-                container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
-                
-                lastX = touch.clientX;
-                lastY = touch.clientY;
+                if (e.touches.length === 1 && isDragging) {
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - lastX;
+                    const deltaY = touch.clientY - lastY;
+                    
+                    rotY += deltaX * 0.5;
+                    rotX += deltaY * 0.3;
+                    rotX = Math.max(-90, Math.min(90, rotX));
+                    
+                    container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
+                    
+                    lastX = touch.clientX;
+                    lastY = touch.clientY;
+                } else if (e.touches.length === 2) {
+                    const currentDistance = getTouchDistance(e.touches);
+                    const delta = (currentDistance - lastDistance) * 0.005;
+                    
+                    scale = Math.max(0.1, Math.min(1.5, scale + delta));
+                    model.setAttribute('scale', scale + ' ' + scale + ' ' + scale);
+                    
+                    lastDistance = currentDistance;
+                }
             }, { passive: true });
 
             document.addEventListener('touchend', function() {
                 isDragging = false;
             }, { passive: true });
 
-            // Mouse (desktop)
+            // ===== MOUSE (DESKTOP) COM SCROLL =====
             let isMouseDown = false;
             document.addEventListener('mousedown', function(e) {
                 isMouseDown = true;
@@ -239,6 +263,14 @@
             document.addEventListener('mouseup', function() {
                 isMouseDown = false;
             });
+
+            // Scroll do mouse para zoom (desktop)
+            document.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                scale = Math.max(0.1, Math.min(1.5, scale + delta));
+                model.setAttribute('scale', scale + ' ' + scale + ' ' + scale);
+            }, { passive: false });
 
             // ===== PREVINE ZOOM DA PÁGINA =====
             document.addEventListener('gesturestart', function(e) {
