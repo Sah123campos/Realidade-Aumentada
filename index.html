@@ -3,196 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RA - Controle por Toque</title>
+    <title>RA - Modelo Interativo</title>
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     
     <style>
+        /* ESSENCIAL: Garante que a cena ocupe a tela inteira */
+        body { margin: 0; overflow: hidden; }
+        
+        /* Botão profissional para iniciar a câmera */
         #start-btn {
             position: fixed;
             bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 18px 50px;
-            background: #4CAF50;
+            padding: 16px 40px;
+            background: #007AFF;
             color: white;
             border: none;
-            border-radius: 50px;
-            font-size: 22px;
-            font-weight: bold;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
             z-index: 999;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             cursor: pointer;
-            animation: pulse 2s infinite;
+            transition: 0.2s;
+            letter-spacing: 0.5px;
         }
+        #start-btn:active { transform: translateX(-50%) scale(0.95); }
         
-        @keyframes pulse {
-            0% { transform: translateX(-50%) scale(1); }
-            50% { transform: translateX(-50%) scale(1.05); }
-            100% { transform: translateX(-50%) scale(1); }
-        }
-        
+        /* Loading minimalista */
         #loading {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 20px;
-            background: rgba(0,0,0,0.8);
-            padding: 20px 40px;
-            border-radius: 15px;
+            font-size: 16px;
+            background: rgba(0,0,0,0.7);
+            padding: 12px 24px;
+            border-radius: 10px;
             z-index: 998;
-            text-align: center;
-        }
-
-        #info {
-            position: fixed;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: white;
-            background: rgba(0,0,0,0.6);
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            z-index: 997;
-            text-align: center;
+            backdrop-filter: blur(4px);
         }
     </style>
 </head>
 <body>
-    <button id="start-btn">📷 INICIAR CÂMERA</button>
-    
-    <div id="loading">🔄 Clique no botão para iniciar a câmera</div>
-    
-    <div id="info">👆 Arraste o dedo na tela para girar o modelo</div>
-    
+
+    <!-- Interface -->
+    <button id="start-btn">📷 Iniciar Câmera</button>
+    <div id="loading">Aponte para o marcador</div>
+
+    <!-- Cena AR -->
     <a-scene 
         id="scene"
-        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind; autoStart: false;" 
+        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Amentada/targets.mind; autoStart: false;" 
         vr-mode-ui="enabled: false" 
         device-orientation-permission-ui="enabled: false">
         
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
+        <!-- Alvo do MindAR -->
         <a-entity mindar-image-target="targetIndex: 0">
             
-            <!-- Container do modelo (para controlar rotação) -->
+            <!-- 
+                CONTAINER DO MODELO
+                A rotação é aplicada AQUI, sem afetar o tracking do MindAR
+            -->
             <a-entity id="model-container" position="0 0 0">
                 
                 <!-- Seu modelo 3D -->
                 <a-entity 
-                    id="meu-modelo"
                     gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
                     position="0 0 0" 
                     rotation="0 0 0" 
                     scale="0.3 0.3 0.3">
                 </a-entity>
                 
-                <!-- Cubo de fallback -->
-                <a-box 
-                    position="0 0 0.25" 
-                    rotation="0 45 0" 
-                    scale="0.5 0.5 0.5"
-                    color="#FF5722">
-                </a-box>
-                
             </a-entity>
             
         </a-entity>
         
     </a-scene>
-    
+
     <script>
-        // ===== INICIAR CÂMERA =====
-        document.getElementById('start-btn').addEventListener('click', function() {
-            const scene = document.getElementById('scene');
+        (function() {
+            'use strict';
+
+            // 1. INICIAR CÂMERA (como estava funcionando)
+            const startBtn = document.getElementById('start-btn');
             const loading = document.getElementById('loading');
-            
-            scene.components['mindar-image'].start();
-            loading.innerHTML = '🔄 Iniciando câmera... Aguarde';
-            this.style.display = 'none';
-            
-            setTimeout(function() {
-                loading.style.display = 'none';
-            }, 3000);
-        });
-        
-        // ===== CONTROLE POR TOQUE =====
-        const container = document.getElementById('model-container');
-        let isDragging = false;
-        let previousX = 0;
-        let previousY = 0;
-        let rotationY = 0;  // Rotação horizontal
-        let rotationX = 0;  // Rotação vertical
-        
-        // Quando começa a arrastar
-        document.addEventListener('touchstart', function(event) {
-            if (event.touches.length === 1) {
-                isDragging = true;
-                previousX = event.touches[0].clientX;
-                previousY = event.touches[0].clientY;
-            }
-        });
-        
-        // Quando arrasta o dedo
-        document.addEventListener('touchmove', function(event) {
-            if (!isDragging || event.touches.length !== 1) return;
-            
-            const touch = event.touches[0];
-            const deltaX = touch.clientX - previousX;
-            const deltaY = touch.clientY - previousY;
-            
-            // Atualiza rotação (quanto mais arrastar, mais gira)
-            rotationY += deltaX * 0.5;  // Horizontal
-            rotationX += deltaY * 0.3;  // Vertical (limitado)
-            
-            // Limita a rotação vertical para não virar de ponta-cabeça
-            rotationX = Math.max(-90, Math.min(90, rotationX));
-            
-            // Aplica a rotação no container
-            container.setAttribute('rotation', rotationX + ' ' + rotationY + ' 0');
-            
-            // Atualiza posição anterior
-            previousX = touch.clientX;
-            previousY = touch.clientY;
-        });
-        
-        // Quando solta o dedo
-        document.addEventListener('touchend', function() {
-            isDragging = false;
-        });
-        
-        // ===== SUPORTE PARA MOUSE (teste no computador) =====
-        let isMouseDown = false;
-        
-        document.addEventListener('mousedown', function(event) {
-            isMouseDown = true;
-            previousX = event.clientX;
-            previousY = event.clientY;
-        });
-        
-        document.addEventListener('mousemove', function(event) {
-            if (!isMouseDown) return;
-            
-            const deltaX = event.clientX - previousX;
-            const deltaY = event.clientY - previousY;
-            
-            rotationY += deltaX * 0.5;
-            rotationX += deltaY * 0.3;
-            rotationX = Math.max(-90, Math.min(90, rotationX));
-            
-            container.setAttribute('rotation', rotationX + ' ' + rotationY + ' 0');
-            
-            previousX = event.clientX;
-            previousY = event.clientY;
-        });
-        
-        document.addEventListener('mouseup', function() {
-            isMouseDown = false;
-        });
+            const scene = document.getElementById('scene');
+
+            startBtn.addEventListener('click', function() {
+                // Inicia o MindAR
+                scene.components['mindar-image'].start();
+                
+                // Feedback visual
+                loading.textContent = '🔍 Procure o marcador...';
+                this.style.display = 'none';
+                
+                // Esconde o loading após 4 segundos (tempo para a câmera iniciar)
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                }, 4000);
+            });
+
+            // 2. CONTROLE DE ROTAÇÃO POR TOQUE (SOMENTE ISSO)
+            const container = document.getElementById('model-container');
+            let rotY = 0;
+            let rotX = 0;
+            let isDragging = false;
+            let lastX = 0;
+            let lastY = 0;
+
+            // Eventos de toque
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    lastX = e.touches[0].clientX;
+                    lastY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!isDragging || e.touches.length !== 1) return;
+                
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - lastX;
+                const deltaY = touch.clientY - lastY;
+                
+                // Rotação suave e precisa
+                rotY += deltaX * 0.5;
+                rotX += deltaY * 0.3;
+                rotX = Math.max(-90, Math.min(90, rotX));
+                
+                // Aplica a rotação APENAS no container
+                container.setAttribute('rotation', `${rotX} ${rotY} 0`);
+                
+                lastX = touch.clientX;
+                lastY = touch.clientY;
+            }, { passive: true });
+
+            document.addEventListener('touchend', () => {
+                isDragging = false;
+            }, { passive: true });
+
+            // Suporte para mouse (teste no computador)
+            let isMouseDown = false;
+            document.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isMouseDown) return;
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                rotY += deltaX * 0.5;
+                rotX += deltaY * 0.3;
+                rotX = Math.max(-90, Math.min(90, rotX));
+                container.setAttribute('rotation', `${rotX} ${rotY} 0`);
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+            document.addEventListener('mouseup', () => { isMouseDown = false; });
+
+        })();
     </script>
 </body>
 </html>
