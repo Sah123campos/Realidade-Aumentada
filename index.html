@@ -2,78 +2,125 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RA - Modelo Interativo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Realidade Aumentada - Modelo 3D</title>
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     
     <style>
-        /* ESSENCIAL: Garante que a cena ocupe a tela inteira */
-        body { margin: 0; overflow: hidden; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        /* Botão profissional para iniciar a câmera */
-        #start-btn {
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            touch-action: none;
+        }
+        
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            z-index: 1000;
+            transition: opacity 0.6s ease;
+        }
+        
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #007AFF;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        #loading p {
+            color: #fff;
+            margin-top: 20px;
+            font-size: 15px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            opacity: 0.7;
+        }
+        
+        #hint {
             position: fixed;
             bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 16px 40px;
-            background: #007AFF;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 18px;
-            font-weight: 600;
-            z-index: 999;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            cursor: pointer;
-            transition: 0.2s;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            font-weight: 400;
             letter-spacing: 0.5px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 100;
+            pointer-events: none;
+            transition: opacity 1s ease;
+            text-align: center;
         }
-        #start-btn:active { transform: translateX(-50%) scale(0.95); }
         
-        /* Loading minimalista */
-        #loading {
+        #hint.hidden {
+            opacity: 0;
+        }
+        
+        a-scene {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-size: 16px;
-            background: rgba(0,0,0,0.7);
-            padding: 12px 24px;
-            border-radius: 10px;
-            z-index: 998;
-            backdrop-filter: blur(4px);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>
 <body>
 
-    <!-- Interface -->
-    <button id="start-btn">📷 Iniciar Câmera</button>
-    <div id="loading">Aponte para o marcador</div>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Inicializando câmera</p>
+    </div>
+
+    <!-- Dica para o usuário -->
+    <div id="hint">Toque e arraste para girar o modelo</div>
 
     <!-- Cena AR -->
     <a-scene 
         id="scene"
-        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Amentada/targets.mind; autoStart: false;" 
+        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind;" 
         vr-mode-ui="enabled: false" 
         device-orientation-permission-ui="enabled: false">
         
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
-        <!-- Alvo do MindAR -->
         <a-entity mindar-image-target="targetIndex: 0">
             
-            <!-- 
-                CONTAINER DO MODELO
-                A rotação é aplicada AQUI, sem afetar o tracking do MindAR
-            -->
             <a-entity id="model-container" position="0 0 0">
                 
-                <!-- Seu modelo 3D -->
                 <a-entity 
                     gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
                     position="0 0 0" 
@@ -91,26 +138,45 @@
         (function() {
             'use strict';
 
-            // 1. INICIAR CÂMERA (como estava funcionando)
-            const startBtn = document.getElementById('start-btn');
             const loading = document.getElementById('loading');
+            const hint = document.getElementById('hint');
             const scene = document.getElementById('scene');
 
-            startBtn.addEventListener('click', function() {
-                // Inicia o MindAR
-                scene.components['mindar-image'].start();
-                
-                // Feedback visual
-                loading.textContent = '🔍 Procure o marcador...';
-                this.style.display = 'none';
-                
-                // Esconde o loading após 4 segundos (tempo para a câmera iniciar)
-                setTimeout(() => {
-                    loading.style.display = 'none';
-                }, 4000);
-            });
+            // ===== INICIA A CÂMERA AUTOMATICAMENTE =====
+            function startCamera() {
+                try {
+                    scene.components['mindar-image'].start();
+                } catch (error) {
+                    console.warn('MindAR start error:', error);
+                    // Fallback: tenta novamente após 1 segundo
+                    setTimeout(() => {
+                        try {
+                            scene.components['mindar-image'].start();
+                        } catch (e) {
+                            console.error('Failed to start camera:', e);
+                        }
+                    }, 1000);
+                }
+            }
 
-            // 2. CONTROLE DE ROTAÇÃO POR TOQUE (SOMENTE ISSO)
+            // Aguarda o carregamento da cena e inicia
+            if (scene.hasLoaded) {
+                startCamera();
+            } else {
+                scene.addEventListener('loaded', startCamera);
+            }
+
+            // ===== ESCONDE LOADING APÓS 3 SEGUNDOS =====
+            setTimeout(() => {
+                loading.classList.add('hidden');
+            }, 3000);
+
+            // ===== ESCONDE A DICA APÓS 8 SEGUNDOS =====
+            setTimeout(() => {
+                hint.classList.add('hidden');
+            }, 8000);
+
+            // ===== CONTROLE DE ROTAÇÃO POR TOQUE =====
             const container = document.getElementById('model-container');
             let rotY = 0;
             let rotX = 0;
@@ -118,8 +184,8 @@
             let lastX = 0;
             let lastY = 0;
 
-            // Eventos de toque
-            document.addEventListener('touchstart', (e) => {
+            // Touch events
+            document.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
                     isDragging = true;
                     lastX = e.touches[0].clientX;
@@ -127,48 +193,55 @@
                 }
             }, { passive: true });
 
-            document.addEventListener('touchmove', (e) => {
+            document.addEventListener('touchmove', function(e) {
                 if (!isDragging || e.touches.length !== 1) return;
                 
                 const touch = e.touches[0];
                 const deltaX = touch.clientX - lastX;
                 const deltaY = touch.clientY - lastY;
                 
-                // Rotação suave e precisa
                 rotY += deltaX * 0.5;
                 rotX += deltaY * 0.3;
                 rotX = Math.max(-90, Math.min(90, rotX));
                 
-                // Aplica a rotação APENAS no container
-                container.setAttribute('rotation', `${rotX} ${rotY} 0`);
+                container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
                 
                 lastX = touch.clientX;
                 lastY = touch.clientY;
             }, { passive: true });
 
-            document.addEventListener('touchend', () => {
+            document.addEventListener('touchend', function() {
                 isDragging = false;
             }, { passive: true });
 
-            // Suporte para mouse (teste no computador)
+            // Mouse support (desktop)
             let isMouseDown = false;
-            document.addEventListener('mousedown', (e) => {
+            document.addEventListener('mousedown', function(e) {
                 isMouseDown = true;
                 lastX = e.clientX;
                 lastY = e.clientY;
             });
-            document.addEventListener('mousemove', (e) => {
+
+            document.addEventListener('mousemove', function(e) {
                 if (!isMouseDown) return;
                 const deltaX = e.clientX - lastX;
                 const deltaY = e.clientY - lastY;
                 rotY += deltaX * 0.5;
                 rotX += deltaY * 0.3;
                 rotX = Math.max(-90, Math.min(90, rotX));
-                container.setAttribute('rotation', `${rotX} ${rotY} 0`);
+                container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
                 lastX = e.clientX;
                 lastY = e.clientY;
             });
-            document.addEventListener('mouseup', () => { isMouseDown = false; });
+
+            document.addEventListener('mouseup', function() {
+                isMouseDown = false;
+            });
+
+            // ===== PREVINE ZOOM E SCROLL DA PÁGINA =====
+            document.addEventListener('gesturestart', function(e) {
+                e.preventDefault();
+            }, { passive: false });
 
         })();
     </script>
