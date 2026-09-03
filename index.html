@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RA - Minha Experiência</title>
+    <title>RA - Controle por Toque</title>
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     
     <style>
-        /* Estilo simples para o botão */
         #start-btn {
             position: fixed;
             bottom: 40px;
@@ -47,16 +46,28 @@
             z-index: 998;
             text-align: center;
         }
+
+        #info {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 997;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <!-- Botão para iniciar -->
     <button id="start-btn">📷 INICIAR CÂMERA</button>
     
-    <!-- Mensagem de loading -->
-    <div id="loading">
-        🔄 Clique no botão para iniciar a câmera
-    </div>
+    <div id="loading">🔄 Clique no botão para iniciar a câmera</div>
+    
+    <div id="info">👆 Arraste o dedo na tela para girar o modelo</div>
     
     <a-scene 
         id="scene"
@@ -67,44 +78,120 @@
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
         <a-entity mindar-image-target="targetIndex: 0">
-            <!-- Seu modelo 3D -->
-            <a-entity 
-                gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
-                position="0 0 0" 
-                rotation="0 0 0" 
-                scale="0.3 0.3 0.3">
+            
+            <!-- Container do modelo (para controlar rotação) -->
+            <a-entity id="model-container" position="0 0 0">
+                
+                <!-- Seu modelo 3D -->
+                <a-entity 
+                    id="meu-modelo"
+                    gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
+                    position="0 0 0" 
+                    rotation="0 0 0" 
+                    scale="0.3 0.3 0.3">
+                </a-entity>
+                
+                <!-- Cubo de fallback -->
+                <a-box 
+                    position="0 0 0.25" 
+                    rotation="0 45 0" 
+                    scale="0.5 0.5 0.5"
+                    color="#FF5722">
+                </a-box>
+                
             </a-entity>
             
-            <!-- Cubo de fallback (caso o modelo não carregue) -->
-            <a-box 
-                position="0 0 0.25" 
-                rotation="0 45 0" 
-                scale="0.5 0.5 0.5"
-                color="#FF5722">
-            </a-box>
         </a-entity>
         
     </a-scene>
     
     <script>
-        // Quando clicar no botão
+        // ===== INICIAR CÂMERA =====
         document.getElementById('start-btn').addEventListener('click', function() {
             const scene = document.getElementById('scene');
             const loading = document.getElementById('loading');
             
-            // Inicia a câmera
             scene.components['mindar-image'].start();
-            
-            // Muda a mensagem
             loading.innerHTML = '🔄 Iniciando câmera... Aguarde';
-            
-            // Esconde o botão
             this.style.display = 'none';
             
-            // Após 3 segundos, esconde o loading (espera a câmera iniciar)
             setTimeout(function() {
                 loading.style.display = 'none';
             }, 3000);
+        });
+        
+        // ===== CONTROLE POR TOQUE =====
+        const container = document.getElementById('model-container');
+        let isDragging = false;
+        let previousX = 0;
+        let previousY = 0;
+        let rotationY = 0;  // Rotação horizontal
+        let rotationX = 0;  // Rotação vertical
+        
+        // Quando começa a arrastar
+        document.addEventListener('touchstart', function(event) {
+            if (event.touches.length === 1) {
+                isDragging = true;
+                previousX = event.touches[0].clientX;
+                previousY = event.touches[0].clientY;
+            }
+        });
+        
+        // Quando arrasta o dedo
+        document.addEventListener('touchmove', function(event) {
+            if (!isDragging || event.touches.length !== 1) return;
+            
+            const touch = event.touches[0];
+            const deltaX = touch.clientX - previousX;
+            const deltaY = touch.clientY - previousY;
+            
+            // Atualiza rotação (quanto mais arrastar, mais gira)
+            rotationY += deltaX * 0.5;  // Horizontal
+            rotationX += deltaY * 0.3;  // Vertical (limitado)
+            
+            // Limita a rotação vertical para não virar de ponta-cabeça
+            rotationX = Math.max(-90, Math.min(90, rotationX));
+            
+            // Aplica a rotação no container
+            container.setAttribute('rotation', rotationX + ' ' + rotationY + ' 0');
+            
+            // Atualiza posição anterior
+            previousX = touch.clientX;
+            previousY = touch.clientY;
+        });
+        
+        // Quando solta o dedo
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // ===== SUPORTE PARA MOUSE (teste no computador) =====
+        let isMouseDown = false;
+        
+        document.addEventListener('mousedown', function(event) {
+            isMouseDown = true;
+            previousX = event.clientX;
+            previousY = event.clientY;
+        });
+        
+        document.addEventListener('mousemove', function(event) {
+            if (!isMouseDown) return;
+            
+            const deltaX = event.clientX - previousX;
+            const deltaY = event.clientY - previousY;
+            
+            rotationY += deltaX * 0.5;
+            rotationX += deltaY * 0.3;
+            rotationX = Math.max(-90, Math.min(90, rotationX));
+            
+            container.setAttribute('rotation', rotationX + ' ' + rotationY + ' 0');
+            
+            previousX = event.clientX;
+            previousY = event.clientY;
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isMouseDown = false;
         });
     </script>
 </body>
