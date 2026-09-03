@@ -3,30 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Modelo 3D em RA</title>
+    <title>RA - Minha Experiência</title>
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    
+    <style>
+        /* Estilo simples para o botão */
+        #start-btn {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 18px 50px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 22px;
+            font-weight: bold;
+            z-index: 999;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            cursor: pointer;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.05); }
+            100% { transform: translateX(-50%) scale(1); }
+        }
+        
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 20px 40px;
+            border-radius: 15px;
+            z-index: 998;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <!-- Cena com seu target -->
+    <!-- Botão para iniciar -->
+    <button id="start-btn">📷 INICIAR CÂMERA</button>
+    
+    <!-- Mensagem de loading -->
+    <div id="loading">
+        🔄 Clique no botão para iniciar a câmera
+    </div>
+    
     <a-scene 
-        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind;" 
+        id="scene"
+        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind; autoStart: false;" 
         vr-mode-ui="enabled: false" 
         device-orientation-permission-ui="enabled: false">
         
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
-        <!-- Seu modelo 3D substituindo o cubo -->
         <a-entity mindar-image-target="targetIndex: 0">
+            <!-- Seu modelo 3D -->
             <a-entity 
                 gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
                 position="0 0 0" 
                 rotation="0 0 0" 
-                scale="0.5 0.5 0.5">
+                scale="0.3 0.3 0.3">
             </a-entity>
+            
+            <!-- Cubo de fallback (caso o modelo não carregue) -->
+            <a-box 
+                position="0 0 0.25" 
+                rotation="0 45 0" 
+                scale="0.5 0.5 0.5"
+                color="#FF5722">
+            </a-box>
         </a-entity>
         
     </a-scene>
+    
+    <script>
+        // Quando clicar no botão
+        document.getElementById('start-btn').addEventListener('click', function() {
+            const scene = document.getElementById('scene');
+            const loading = document.getElementById('loading');
+            
+            // Inicia a câmera
+            scene.components['mindar-image'].start();
+            
+            // Muda a mensagem
+            loading.innerHTML = '🔄 Iniciando câmera... Aguarde';
+            
+            // Esconde o botão
+            this.style.display = 'none';
+            
+            // Após 3 segundos, esconde o loading (espera a câmera iniciar)
+            setTimeout(function() {
+                loading.style.display = 'none';
+            }, 3000);
+        });
+    </script>
 </body>
 </html>
