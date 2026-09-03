@@ -7,8 +7,6 @@
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    
-    <!-- Carrega o animation-mixer para controlar animações -->
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.6.1/dist/aframe-extras.min.js"></script>
     
     <style>
@@ -66,6 +64,13 @@
             letter-spacing: 0.3px;
         }
         
+        #loading .error {
+            color: #FF6B6B;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+        
         #hint {
             position: fixed;
             bottom: 40px;
@@ -105,6 +110,7 @@
     <div id="loading">
         <div class="spinner"></div>
         <p>Inicializando câmera</p>
+        <p class="error" id="error-msg">Erro ao iniciar a câmera. Verifique as permissões.</p>
     </div>
 
     <!-- Dica -->
@@ -113,20 +119,14 @@
     <!-- Cena AR -->
     <a-scene 
         id="scene"
-        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind;" 
+        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind; autoStart: false;" 
         vr-mode-ui="enabled: false" 
         device-orientation-permission-ui="enabled: false">
         
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
         <a-entity mindar-image-target="targetIndex: 0">
-            
             <a-entity id="model-container" position="0 0 0">
-                
-                <!-- 
-                    Modelo com animação
-                    animation-mixer toca automaticamente as animações do .glb
-                -->
                 <a-entity 
                     id="model"
                     gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
@@ -135,9 +135,7 @@
                     rotation="0 0 0" 
                     scale="0.3 0.3 0.3">
                 </a-entity>
-                
             </a-entity>
-            
         </a-entity>
         
     </a-scene>
@@ -147,33 +145,51 @@
             'use strict';
 
             const loading = document.getElementById('loading');
+            const errorMsg = document.getElementById('error-msg');
             const hint = document.getElementById('hint');
             const scene = document.getElementById('scene');
 
-            // ===== INICIA A CÂMERA AUTOMATICAMENTE =====
+            // ===== INICIA A CÂMERA COM TRATAMENTO DE ERRO =====
             function startCamera() {
                 try {
-                    scene.components['mindar-image'].start();
+                    const mindar = scene.components['mindar-image'];
+                    if (mindar) {
+                        mindar.start();
+                        console.log('MindAR iniciado com sucesso');
+                    } else {
+                        throw new Error('Componente MindAR não encontrado');
+                    }
                 } catch (error) {
+                    console.error('Erro ao iniciar câmera:', error);
+                    errorMsg.style.display = 'block';
+                    errorMsg.textContent = 'Erro: ' + error.message;
+                    
+                    // Tentativa de recuperação após 3 segundos
                     setTimeout(() => {
                         try {
-                            scene.components['mindar-image'].start();
+                            const mindar = scene.components['mindar-image'];
+                            if (mindar) {
+                                mindar.start();
+                                errorMsg.style.display = 'none';
+                            }
                         } catch (e) {
-                            console.warn('Camera start fallback:', e);
+                            console.error('Falha na recuperação:', e);
                         }
-                    }, 500);
+                    }, 3000);
                 }
             }
 
+            // ===== AGUARDA O CARREGAMENTO DA CENA =====
             if (scene.hasLoaded) {
                 startCamera();
             } else {
                 scene.addEventListener('loaded', startCamera);
             }
 
+            // ===== ESCONDE LOADING =====
             setTimeout(() => {
                 loading.classList.add('hidden');
-            }, 2500);
+            }, 3000);
 
             setTimeout(() => {
                 hint.classList.add('hidden');
@@ -191,7 +207,6 @@
             let lastY = 0;
             let lastDistance = 0;
 
-            // ===== ZOOM COM PINÇA =====
             function getTouchDistance(touches) {
                 if (touches.length < 2) return 0;
                 const dx = touches[0].clientX - touches[1].clientX;
@@ -199,7 +214,6 @@
                 return Math.sqrt(dx * dx + dy * dy);
             }
 
-            // Touch: inicia
             document.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
                     isDragging = true;
@@ -210,7 +224,6 @@
                 }
             }, { passive: true });
 
-            // Touch: move
             document.addEventListener('touchmove', function(e) {
                 if (e.touches.length === 1 && isDragging) {
                     const touch = e.touches[0];
@@ -240,7 +253,7 @@
                 isDragging = false;
             }, { passive: true });
 
-            // ===== MOUSE (DESKTOP) COM SCROLL =====
+            // Mouse
             let isMouseDown = false;
             document.addEventListener('mousedown', function(e) {
                 isMouseDown = true;
@@ -264,7 +277,6 @@
                 isMouseDown = false;
             });
 
-            // Scroll do mouse para zoom (desktop)
             document.addEventListener('wheel', function(e) {
                 e.preventDefault();
                 const delta = e.deltaY > 0 ? -0.05 : 0.05;
@@ -272,7 +284,6 @@
                 model.setAttribute('scale', scale + ' ' + scale + ' ' + scale);
             }, { passive: false });
 
-            // ===== PREVINE ZOOM DA PÁGINA =====
             document.addEventListener('gesturestart', function(e) {
                 e.preventDefault();
             }, { passive: false });
