@@ -10,12 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.6.1/dist/aframe-extras.min.js"></script>
     
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #000;
             overflow: hidden;
@@ -37,12 +32,7 @@
             z-index: 1000;
             transition: opacity 0.8s ease;
         }
-        
-        #loading.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-        
+        #loading.hidden { opacity: 0; pointer-events: none; }
         .spinner {
             width: 44px;
             height: 44px;
@@ -51,26 +41,19 @@
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
         }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
+        @keyframes spin { to { transform: rotate(360deg); } }
         #loading p {
             color: rgba(255, 255, 255, 0.6);
             margin-top: 16px;
             font-size: 14px;
             font-weight: 400;
-            letter-spacing: 0.3px;
         }
-        
         #loading .error {
             color: #FF6B6B;
             font-size: 12px;
             margin-top: 8px;
             display: none;
         }
-        
         #hint {
             position: fixed;
             bottom: 40px;
@@ -78,45 +61,43 @@
             transform: translateX(-50%);
             color: rgba(255, 255, 255, 0.4);
             font-size: 13px;
-            font-weight: 400;
-            letter-spacing: 0.5px;
             background: rgba(0, 0, 0, 0.5);
             padding: 8px 18px;
             border-radius: 20px;
             backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
             z-index: 100;
             pointer-events: none;
             transition: opacity 1.5s ease;
-            text-align: center;
         }
-        
-        #hint.hidden {
-            opacity: 0;
-        }
-        
-        a-scene {
+        #hint.hidden { opacity: 0; }
+        a-scene { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+        #status {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            background: rgba(0,0,0,0.7);
+            padding: 6px 16px;
+            border-radius: 12px;
+            font-size: 12px;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <!-- Loading -->
     <div id="loading">
         <div class="spinner"></div>
         <p>Inicializando câmera</p>
         <p class="error" id="error-msg">Erro ao iniciar a câmera. Verifique as permissões.</p>
     </div>
 
-    <!-- Dica -->
+    <div id="status">🔍 Procure o marcador</div>
     <div id="hint">Arraste para girar | Pinça para zoom</div>
 
-    <!-- Cena AR -->
     <a-scene 
         id="scene"
         mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind; autoStart: false;" 
@@ -147,33 +128,58 @@
             const loading = document.getElementById('loading');
             const errorMsg = document.getElementById('error-msg');
             const hint = document.getElementById('hint');
+            const status = document.getElementById('status');
             const scene = document.getElementById('scene');
+
+            let cameraStarted = false;
 
             // ===== INICIA A CÂMERA COM TRATAMENTO DE ERRO =====
             function startCamera() {
+                if (cameraStarted) return;
+                
                 try {
                     const mindar = scene.components['mindar-image'];
-                    if (mindar) {
-                        mindar.start();
-                        console.log('MindAR iniciado com sucesso');
-                    } else {
+                    if (!mindar) {
                         throw new Error('Componente MindAR não encontrado');
                     }
+                    
+                    mindar.start();
+                    cameraStarted = true;
+                    status.style.display = 'block';
+                    status.textContent = '🔍 Câmera ativa - Procure o marcador';
+                    console.log('✅ MindAR iniciado com sucesso');
+                    
+                    // Quando detectar o marcador
+                    scene.addEventListener('targetFound', function() {
+                        status.textContent = '✅ Marcador detectado!';
+                        setTimeout(() => {
+                            status.style.display = 'none';
+                        }, 3000);
+                    });
+                    
+                    setTimeout(() => {
+                        loading.classList.add('hidden');
+                    }, 2000);
+                    
                 } catch (error) {
-                    console.error('Erro ao iniciar câmera:', error);
+                    console.error('❌ Erro ao iniciar câmera:', error);
                     errorMsg.style.display = 'block';
                     errorMsg.textContent = 'Erro: ' + error.message;
                     
-                    // Tentativa de recuperação após 3 segundos
+                    // Tentativa de recuperação
                     setTimeout(() => {
                         try {
                             const mindar = scene.components['mindar-image'];
                             if (mindar) {
                                 mindar.start();
+                                cameraStarted = true;
                                 errorMsg.style.display = 'none';
+                                status.textContent = '🔍 Câmera ativa';
+                                loading.classList.add('hidden');
+                                console.log('✅ MindAR iniciado na recuperação');
                             }
                         } catch (e) {
-                            console.error('Falha na recuperação:', e);
+                            console.error('❌ Falha na recuperação:', e);
                         }
                     }, 3000);
                 }
@@ -186,11 +192,25 @@
                 scene.addEventListener('loaded', startCamera);
             }
 
-            // ===== ESCONDE LOADING =====
+            // Fallback: se o MindAR não iniciar em 5 segundos
             setTimeout(() => {
-                loading.classList.add('hidden');
-            }, 3000);
+                if (!cameraStarted) {
+                    try {
+                        const mindar = scene.components['mindar-image'];
+                        if (mindar) {
+                            mindar.start();
+                            cameraStarted = true;
+                            status.textContent = '🔍 Câmera ativa (fallback)';
+                            loading.classList.add('hidden');
+                            console.log('✅ MindAR iniciado via fallback');
+                        }
+                    } catch (e) {
+                        console.error('❌ Fallback falhou:', e);
+                    }
+                }
+            }, 5000);
 
+            // ===== ESCONDE A DICA =====
             setTimeout(() => {
                 hint.classList.add('hidden');
             }, 6000);
@@ -199,13 +219,8 @@
             const container = document.getElementById('model-container');
             const model = document.getElementById('model');
             
-            let rotY = 0;
-            let rotX = 0;
-            let scale = 0.3;
-            let isDragging = false;
-            let lastX = 0;
-            let lastY = 0;
-            let lastDistance = 0;
+            let rotY = 0, rotX = 0, scale = 0.3;
+            let isDragging = false, lastX = 0, lastY = 0, lastDistance = 0;
 
             function getTouchDistance(touches) {
                 if (touches.length < 2) return 0;
@@ -235,16 +250,13 @@
                     rotX = Math.max(-90, Math.min(90, rotX));
                     
                     container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
-                    
                     lastX = touch.clientX;
                     lastY = touch.clientY;
                 } else if (e.touches.length === 2) {
                     const currentDistance = getTouchDistance(e.touches);
                     const delta = (currentDistance - lastDistance) * 0.005;
-                    
                     scale = Math.max(0.1, Math.min(1.5, scale + delta));
                     model.setAttribute('scale', scale + ' ' + scale + ' ' + scale);
-                    
                     lastDistance = currentDistance;
                 }
             }, { passive: true });
@@ -288,6 +300,7 @@
                 e.preventDefault();
             }, { passive: false });
 
+            console.log('🚀 Script carregado - aguardando MindAR');
         })();
     </script>
 </body>
