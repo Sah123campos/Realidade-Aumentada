@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Realidade Aumentada</title>
+    
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.6.1/dist/aframe-extras.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            touch-action: none;
+        }
+        
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            z-index: 1000;
+            transition: opacity 0.8s ease;
+        }
+        #loading.hidden { opacity: 0; pointer-events: none; }
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #007AFF;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading p {
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 16px;
+            font-size: 14px;
+            font-weight: 400;
+        }
+        #loading .error {
+            color: #FF6B6B;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+        #hint {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 18px;
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            pointer-events: none;
+            transition: opacity 1.5s ease;
+        }
+        #hint.hidden { opacity: 0; }
+        a-scene { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+        #status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            background: rgba(0,0,0,0.7);
+            padding: 6px 16px;
+            border-radius: 12px;
+            font-size: 12px;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Inicializando câmera</p>
+        <p class="error" id="error-msg">Erro ao iniciar a câmera. Verifique as permissões.</p>
+    </div>
+
+    <div id="status">🔍 Procure o marcador</div>
+    <div id="hint">Arraste para girar | Pinça para zoom</div>
+
+    <a-scene 
+        id="scene"
+        mindar-image="imageTargetSrc: targets.mind; autoStart: true;" 
+        vr-mode-ui="enabled: false" 
+        device-orientation-permission-ui="enabled: false">
+        
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        
+        <a-entity mindar-image-target="targetIndex: 0">
+            <a-entity id="model-container" position="0 0 0">
+                <a-entity 
+                    id="model"
+                    gltf-model="doido.glb"
+                    animation-mixer="clip: *; loop: repeat; repetitions: Infinity; timeScale: 1;"
+                    position="0 0 0" 
+                    rotation="0 0 0" 
+                    scale="0.3 0.3 0.3">
+                </a-entity>
+            </a-entity>
+        </a-entity>
+        
+    </a-scene>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const loading = document.getElementById('loading');
+            const errorMsg = document.getElementById('error-msg');
+            const hint = document.getElementById('hint');
+            const status = document.getElementById('status');
+            const scene = document.getElementById('scene');
+
+            if (window.location.protocol === 'file:') {
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'Abra esta página por HTTPS ou localhost para liberar a câmera.';
+            }
+
+            scene.addEventListener('arReady', function() {
+                status.style.display = 'block';
+                status.textContent = '🔍 Câmera ativa - Procure o marcador';
+                loading.classList.add('hidden');
+                console.log('✅ MindAR iniciado com sucesso');
+            });
+
+            scene.addEventListener('targetFound', function() {
+                status.textContent = '✅ Marcador detectado!';
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
+            });
+
+            scene.addEventListener('arError', function(event) {
+                console.error('❌ Erro ao iniciar câmera:', event.detail);
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'Não foi possível acessar a câmera. Permita o acesso e abra por HTTPS ou localhost.';
+            });
+
+            // ===== ESCONDE A DICA =====
+            setTimeout(() => {
+                hint.classList.add('hidden');
+            }, 6000);
+
+            // ===== CONTROLE: ROTAÇÃO + ZOOM =====
+            const container = document.getElementById('model-container');
+            const model = document.getElementById('model');
+            
+            let rotY = 0, rotX = 0, scale = 0.3;
+            let isDragging = false, lastX = 0, lastY = 0, lastDistance = 0;
+
+            function getTouchDistance(touches) {
+                if (touches.length < 2) return 0;
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    lastX = e.touches[0].clientX;
+                    lastY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    lastDistance = getTouchDistance(e.touches);
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 1 && isDragging) {
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - lastX;
+                    const deltaY = touch.clientY - lastY;
+                    
+                    rotY += deltaX * 0.5;
+                    rotX += deltaY * 0.3;
+                    rotX = Math.max(-90, Math.min(90, rotX));
+                    
+                    container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
+                    lastX = touch.clientX;
+                    lastY = touch.clientY;
+                } else if (e.touches.length === 2) {
+                    const currentDistance = getTouchDistance(e.touches);
+                    const delta = (currentDistance - lastDistance) * 0.005;
+                    scale = Math.max(0.1, Math.min(1.5, scale + delta));
+                    model.setAttribute('scale', scale + ' ' + scale + ' ' + scale);
+                    lastDistance = currentDistance;
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchend', function() {
+                isDragging = false;
+            }, { passive: true });
+
+            // Mouse
+            let isMouseDown = false;
+            document.addEventListener('mousedown', function(e) {
+                isMouseDown = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isMouseDown) return;
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                rotY += deltaX * 0.5;
+                rotX += deltaY * 0.3;
+                rotX = Math.max(-90, Math.min(90, rotX));
+                container.setAttribute('rotation', rotX + ' ' + rotY + ' 0');
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+
+            document.addEventListener('mouseup', function() {
+                isMouseDown = false;
+            });
+
+            document.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                scale = Math.max(0.1, Math.min(1.5, scale + delta));
+                model.setAttribute('scale', scale + ' ' + scale + ' ' + scale);
+            }, { passive: false });
+
+            document.addEventListener('gesturestart', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+
+            console.log('🚀 Script carregado - aguardando MindAR');
+        })();
+    </script>
+</body>
+</html>
