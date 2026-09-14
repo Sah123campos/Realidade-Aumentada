@@ -100,7 +100,7 @@
 
     <a-scene 
         id="scene"
-        mindar-image="imageTargetSrc: https://Sah123campos.github.io/Realidade-Aumentada/targets.mind; autoStart: false;" 
+        mindar-image="imageTargetSrc: targets.mind; autoStart: true;" 
         vr-mode-ui="enabled: false" 
         device-orientation-permission-ui="enabled: false">
         
@@ -110,7 +110,7 @@
             <a-entity id="model-container" position="0 0 0">
                 <a-entity 
                     id="model"
-                    gltf-model="https://Sah123campos.github.io/Realidade-Aumentada/doido.glb"
+                    gltf-model="doido.glb"
                     animation-mixer="clip: *; loop: repeat; repetitions: Infinity; timeScale: 1;"
                     position="0 0 0" 
                     rotation="0 0 0" 
@@ -131,84 +131,30 @@
             const status = document.getElementById('status');
             const scene = document.getElementById('scene');
 
-            let cameraStarted = false;
-
-            // ===== INICIA A CÂMERA COM TRATAMENTO DE ERRO =====
-            function startCamera() {
-                if (cameraStarted) return;
-                
-                try {
-                    const mindar = scene.components['mindar-image'];
-                    if (!mindar) {
-                        throw new Error('Componente MindAR não encontrado');
-                    }
-                    
-                    mindar.start();
-                    cameraStarted = true;
-                    status.style.display = 'block';
-                    status.textContent = '🔍 Câmera ativa - Procure o marcador';
-                    console.log('✅ MindAR iniciado com sucesso');
-                    
-                    // Quando detectar o marcador
-                    scene.addEventListener('targetFound', function() {
-                        status.textContent = '✅ Marcador detectado!';
-                        setTimeout(() => {
-                            status.style.display = 'none';
-                        }, 3000);
-                    });
-                    
-                    setTimeout(() => {
-                        loading.classList.add('hidden');
-                    }, 2000);
-                    
-                } catch (error) {
-                    console.error('❌ Erro ao iniciar câmera:', error);
-                    errorMsg.style.display = 'block';
-                    errorMsg.textContent = 'Erro: ' + error.message;
-                    
-                    // Tentativa de recuperação
-                    setTimeout(() => {
-                        try {
-                            const mindar = scene.components['mindar-image'];
-                            if (mindar) {
-                                mindar.start();
-                                cameraStarted = true;
-                                errorMsg.style.display = 'none';
-                                status.textContent = '🔍 Câmera ativa';
-                                loading.classList.add('hidden');
-                                console.log('✅ MindAR iniciado na recuperação');
-                            }
-                        } catch (e) {
-                            console.error('❌ Falha na recuperação:', e);
-                        }
-                    }, 3000);
-                }
+            if (window.location.protocol === 'file:') {
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'Abra esta página por HTTPS ou localhost para liberar a câmera.';
             }
 
-            // ===== AGUARDA O CARREGAMENTO DA CENA =====
-            if (scene.hasLoaded) {
-                startCamera();
-            } else {
-                scene.addEventListener('loaded', startCamera);
-            }
+            scene.addEventListener('arReady', function() {
+                status.style.display = 'block';
+                status.textContent = '🔍 Câmera ativa - Procure o marcador';
+                loading.classList.add('hidden');
+                console.log('✅ MindAR iniciado com sucesso');
+            });
 
-            // Fallback: se o MindAR não iniciar em 5 segundos
-            setTimeout(() => {
-                if (!cameraStarted) {
-                    try {
-                        const mindar = scene.components['mindar-image'];
-                        if (mindar) {
-                            mindar.start();
-                            cameraStarted = true;
-                            status.textContent = '🔍 Câmera ativa (fallback)';
-                            loading.classList.add('hidden');
-                            console.log('✅ MindAR iniciado via fallback');
-                        }
-                    } catch (e) {
-                        console.error('❌ Fallback falhou:', e);
-                    }
-                }
-            }, 5000);
+            scene.addEventListener('targetFound', function() {
+                status.textContent = '✅ Marcador detectado!';
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
+            });
+
+            scene.addEventListener('arError', function(event) {
+                console.error('❌ Erro ao iniciar câmera:', event.detail);
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'Não foi possível acessar a câmera. Permita o acesso e abra por HTTPS ou localhost.';
+            });
 
             // ===== ESCONDE A DICA =====
             setTimeout(() => {
